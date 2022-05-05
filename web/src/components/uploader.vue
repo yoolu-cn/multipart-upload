@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { message } from 'ant-design-vue';
 import { reactive, ref, unref, computed } from 'vue';
-import { ChunkFileItem, CHUNK_SIZE, Container, createFileChunks, createFileHash, MAX_REQUEST, MAX_REXHR, ProgressStatus } from '../helper';
+import {
+    ChunkFileItem,
+    CHUNK_SIZE,
+    Container,
+    createFileChunks,
+    createFileHash,
+    MAX_REQUEST,
+    MAX_REXHR,
+    ProgressStatus,
+} from '../helper';
 import { cancelToken } from '../helper/fetch';
 import { getId, search, Status as StatusOption, uploadChunk, result } from '../service/upload';
 
@@ -30,16 +39,16 @@ const container: Container = reactive({
     file: null,
     hash: '',
     id: '',
-    worker: null
+    worker: null,
 });
 
 const fileChange = (e: InputEvent) => {
     resetUpload();
-    const [file]:FileList = (e.target as HTMLInputElement).files!;
+    const [file]: FileList = (e.target as HTMLInputElement).files!;
     if (!file) {
         return;
     }
-    console.log('File: ', file)
+    console.log('File: ', file);
     container.file = file;
 };
 
@@ -51,16 +60,18 @@ const upload = async () => {
     if (!file) return;
     status.value = StatusOption.uploading;
     const fileChunks = createFileChunks(file, CHUNK_SIZE);
-    console.log('fileChunks', fileChunks)
     container.hash = await createFileHash(container, (percent: number) => {
         hashPercent.value = percent;
     });
 
-    const { size, name, type  } = file;
+    const { size, name, type } = file;
 
     const res = await search({ hash: container.hash, size, name, type });
-    const { success, message: info, data: { status: searchStatus, id, chunkHash: uploadedList = [] } = {}} = res;
-    console.log(res)
+    const {
+        success,
+        message: info,
+        data: { status: searchStatus, id, chunkHash: uploadedList = [] } = {},
+    } = res;
     // 接口报错
     if (!success) {
         return message.error(info);
@@ -68,7 +79,7 @@ const upload = async () => {
     container.id = id!;
     hashPercent.value = 100;
     status.value = searchStatus as StatusOption;
-    switch(searchStatus) {
+    switch (searchStatus) {
         case StatusOption.success:
             updateTableSource(fileChunks, [], true);
             uploadPercent.status = 'success';
@@ -76,18 +87,26 @@ const upload = async () => {
             break;
         case StatusOption.uploading:
         case StatusOption.pause:
-            beforeUpload(fileChunks, uploadedList);
+            updateTableSource(fileChunks, uploadedList, false);
+            beforeUpload(uploadedList);
             break;
-        default: 
-            const { data: { id } } = await getId({ hash: container.hash, size, name, type });
+        default:
+            const {
+                data: { id },
+            } = await getId({ hash: container.hash, size, name, type });
             container.id = id;
-            beforeUpload(fileChunks, uploadedList);
+            updateTableSource(fileChunks, uploadedList, false);
+            beforeUpload(uploadedList);
             break;
     }
-}
+};
 
-const updateTableSource = (fileChunks: Array<{ file: Blob }>, uploadedList: string[], uploaded: boolean) => {
-    dataSource.value = fileChunks.map((item: { file: Blob }, index: number):ChunkFileItem => {
+const updateTableSource = (
+    fileChunks: Array<{ file: Blob }>,
+    uploadedList: string[],
+    uploaded: boolean
+) => {
+    dataSource.value = fileChunks.map((item: { file: Blob }, index: number): ChunkFileItem => {
         const hash = container.hash + '-' + index;
         const success = uploaded || uploadedList.includes(hash);
         return reactive({
@@ -98,53 +117,68 @@ const updateTableSource = (fileChunks: Array<{ file: Blob }>, uploadedList: stri
             size: item.file.size,
             percent: success ? 100 : 0,
             status: success ? 'success' : 'active',
-            cancelToken: success ? null : cancelToken.source()
-        })
+            cancelToken: success ? null : cancelToken.source(),
+        });
     });
-    console.log(unref(dataSource.value));
-}
+};
 
-const beforeUpload = async (fileChunks: Array<{ file: Blob }>, uploadedList: string[]) => {
-    updateTableSource(fileChunks, uploadedList, false);
+const beforeUpload = async (uploadedList: string[]) => {
     await uploadChunks(uploadedList);
-
     if (uploadPercent.status === 'success') {
         await result(container.id);
         message.success('上传成功');
     } else {
         message.success('上传失败');
     }
-}
+};
 
-const pause = async () => {
+/**
+ * 暂停恢复操作
+ */
+const restore = async () => {
+    status.value = StatusOption.uploading;
+    const uploadedList: string[] = [];
+    dataSource.value.forEach((item: ChunkFileItem) => {
+        item.status === 'success' && uploadedList.push(item.hash);
+    });
+    uploadPercent.status = 'active';
+    beforeUpload(uploadedList);
+};
+
+/**
+ * 暂停操作
+ */
+const pause = () => {
     status.value = StatusOption.pause;
-}
+};
 
 /**
  * 分片上传操作
  * @param uploadedList 已上传的数据，用于断电续传
  */
 const uploadChunks = async (uploadedList: string[]) => {
-    console.log(uploadedList);
     const errorRequest = new Map();
-    const requestList = unref(dataSource)
-        .filter((item: ChunkFileItem, index: number) => !uploadedList.includes(item.hash));
-    console.log(requestList, uploadedList)
+    const requestList = unref(dataSource).filter(
+        (item: ChunkFileItem, index: number) => !uploadedList.includes(item.hash)
+    );
     let requestDone = false;
     let start: number = 0;
-    while(!requestDone) {
+    while (!requestDone) {
         if (status.value === StatusOption.pause) {
             uploadPercent.status = 'exception';
             requestDone = true;
             break;
         }
-        const promises: any[] = []
+        const promises: any[] = [];
         if (start < requestList.length) {
-            createPromise(promises, requestList.slice(start, start + MAX_REQUEST))
+            createPromise(promises, requestList.slice(start, start + MAX_REQUEST));
             start += promises.length;
         } else {
             const hashs = [...errorRequest.keys()];
-            createPromise(promises, requestList.filter((item: ChunkFileItem) => hashs.includes(item.hash)));
+            createPromise(
+                promises,
+                requestList.filter((item: ChunkFileItem) => hashs.includes(item.hash))
+            );
         }
         const res = await Promise.allSettled(promises);
         res.forEach(({ value }: any) => {
@@ -152,7 +186,7 @@ const uploadChunks = async (uploadedList: string[]) => {
             if (value.success) {
                 hasMap && errorRequest.delete(value.data);
             } else {
-                errorRequest.set(value.data, hasMap ? (errorRequest.get(value.data) + 1) : 1);
+                errorRequest.set(value.data, hasMap ? errorRequest.get(value.data) + 1 : 1);
             }
         });
         /**
@@ -164,7 +198,7 @@ const uploadChunks = async (uploadedList: string[]) => {
             requestDone = true;
             break;
         }
-        
+
         /**
          * 上传完 requestList 并且重试错误请求并成功后 才算真正的上传完成分片
          */
@@ -174,7 +208,7 @@ const uploadChunks = async (uploadedList: string[]) => {
             break;
         }
     }
-}
+};
 
 /**
  * 计算总进度
@@ -182,10 +216,10 @@ const uploadChunks = async (uploadedList: string[]) => {
 const uploadPercentOne = computed(() => {
     if (!dataSource.value.length) return 0;
     const loaded = dataSource.value.filter((item: ChunkFileItem) => {
-        return item.status === 'success'
+        return item.status === 'success';
     });
-    return Number((loaded.length / dataSource.value.length * 100).toFixed(2));
-})
+    return Number(((loaded.length / dataSource.value.length) * 100).toFixed(2));
+});
 /**
  * 利用闭包数据 同步修改接口进度
  * @param item 分片数据
@@ -196,10 +230,11 @@ const createProgressHandler = (item: ChunkFileItem) => {
             item.cancelToken.cancel('取消长传');
             item.cancelToken = cancelToken.source();
         } else {
+            item.status = 'active';
             item.percent = parseInt(String((e.loaded / e.total) * 100));
         }
-    }
-}
+    };
+};
 /**
  * 运用闭包特性 接口返回时同步当前分片状态
  * @param item 分片数据
@@ -207,8 +242,8 @@ const createProgressHandler = (item: ChunkFileItem) => {
 const updateChunkStatus = (item: ChunkFileItem) => {
     return (status: ProgressStatus) => {
         item.status = status;
-    }
-}
+    };
+};
 
 /**
  * 重置上传组件
@@ -217,18 +252,18 @@ const resetUpload = () => {
     status.value = StatusOption.wait;
     dataSource.value = [];
     hashPercent.value = 0;
-    uploadPercent.percent = 0
+    uploadPercent.percent = 0;
     uploadPercent.status = 'active';
     container.file = null;
     container.hash = '';
     container.id = '';
     container.worker = null;
-}
+};
 
 /**
  * 批量生成请求列表
- * @param promises 
- * @param list 
+ * @param promises
+ * @param list
  */
 const createPromise = (promises: any[], list: any[]) => {
     list.forEach((item: ChunkFileItem) => {
@@ -237,14 +272,17 @@ const createPromise = (promises: any[], list: any[]) => {
         formData.append('hash', item.hash);
         formData.append('file', item.chunk);
         promises.push(
-            uploadChunk(formData, {
-                onUploadProgress: createProgressHandler(item),
-                cancelToken: item.cancelToken.token
-            }, updateChunkStatus(item))
+            uploadChunk(
+                formData,
+                {
+                    onUploadProgress: createProgressHandler(item),
+                    cancelToken: item.cancelToken.token,
+                },
+                updateChunkStatus(item)
+            )
         );
-    })
-}
-
+    });
+};
 </script>
 
 <template>
@@ -268,9 +306,7 @@ const createPromise = (promises: any[], list: any[]) => {
         >
             暂停
         </a-button>
-        <a-button v-else type="primary" danger class="mr-4" @click="status = StatusOption.uploading"
-            >恢复</a-button
-        >
+        <a-button v-else type="primary" danger class="mr-4" @click="restore"> 恢复 </a-button>
     </div>
     <div class="flex flex-col p-10">
         <p class="text-left">计算文件hash</p>

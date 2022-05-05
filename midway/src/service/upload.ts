@@ -41,7 +41,6 @@ export class UploadService {
     if (!file) {
       return false;
     }
-    console.log(file);
     const { chunkHash = [] } = file;
     const isExist = chunkHash.includes(hash);
     if (!isExist) {
