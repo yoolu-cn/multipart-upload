@@ -7,8 +7,10 @@
     "@midwayjs/bootstrap": "^3.0.0",
     "@midwayjs/core": "^3.0.0",
     "@midwayjs/decorator": "^3.0.0",
+    "@midwayjs/upload": "^3.3.5",
     "@midwayjs/web": "^3.0.0",
     "egg": "^2.0.0",
+    "fs-extra": "^10.1.0",
     "spark-md5": "^3.0.2"
   },
   "devDependencies": {

@@ -1,11 +1,14 @@
 export const enum Status {
-  wiat,
+  wait,
+  pause,
   uploading,
   success,
 }
 
 export interface FileMapOptions {
   uploadId: string;
+  type: string;
+  size: string;
   hash: string;
   name: string;
   status: Status;
@@ -24,3 +27,11 @@ export interface SuccessResponse {
 }
 
 export type IGetFileResponse = SuccessResponse | ErrorResponse;
+
+export type IGetFileIdResponse = SuccessResponse | ErrorResponse;
+
+export type IPostFileResponse =
+  | ErrorResponse
+  | {
+      data: string;
+    };

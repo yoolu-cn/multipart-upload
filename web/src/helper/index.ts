@@ -5,11 +5,26 @@ export const transformByte = (val: number): number => {
 export interface Container {
     file: File | null;
     hash: string;
+    id: string;
     worker: Worker | null;
 }
 
+export interface ChunkFileItem {
+    index: number;
+    fileHash: string;
+    hash: string;
+    chunk: Blob;
+    size: number;
+    percent: number;
+    status: ProgressStatus;
+    cancelToken: any;
+}
+
+export type ProgressStatus = 'active' | 'exception' | 'success';
 export const CHUNK_SIZE = 1 * 1024 * 1024;
 export const HASH_CHUNK_SIZE = 20 * 1024 * 1024;
+export const MAX_REXHR = 3;
+export const MAX_REQUEST = 5;
 
 /**
  * 对文件进行分片
@@ -37,7 +52,6 @@ export function createFileChunks(file: File, size: number): Array<{ file: Blob }
  */
 export function createFileHash(container: Container, fn: (percentage: number) => void): Promise<string> {
     const fileChunks = createFileChunks(container.file!, HASH_CHUNK_SIZE);
-    console.timeLog('chunk');
     return new Promise((resolve, reject) => {
         try {
             container.worker = new Worker('./src/hash.ts');

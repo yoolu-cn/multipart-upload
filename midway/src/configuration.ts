@@ -3,9 +3,10 @@ import { ILifeCycle } from '@midwayjs/core';
 import { Application } from 'egg';
 import { join } from 'path';
 import * as egg from '@midwayjs/web';
+import * as upload from '@midwayjs/upload';
 
 @Configuration({
-  imports: [egg],
+  imports: [egg, upload],
   importConfigs: [join(__dirname, './config')],
 })
 export class ContainerLifeCycle implements ILifeCycle {

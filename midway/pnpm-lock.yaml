@@ -8,12 +8,14 @@ specifiers:
   '@midwayjs/decorator': ^3.0.0
   '@midwayjs/egg-ts-helper': ^1.0.1
   '@midwayjs/mock': ^3.0.0
+  '@midwayjs/upload': ^3.3.5
   '@midwayjs/web': ^3.0.0
   '@types/jest': ^26.0.10
   '@types/node': '14'
   cross-env: ^6.0.0
   egg: ^2.0.0
   egg-mock: ^3.26.0
+  fs-extra: ^10.1.0
   jest: ^26.4.0
   mwts: ^1.0.5
   spark-md5: ^3.0.2
@@ -24,8 +26,10 @@ dependencies:
   '@midwayjs/bootstrap': 3.3.5
   '@midwayjs/core': 3.3.5_@midwayjs+decorator@3.3.4
   '@midwayjs/decorator': 3.3.4
+  '@midwayjs/upload': 3.3.5
   '@midwayjs/web': 3.3.5_@midwayjs+decorator@3.3.4
   egg: 2.35.0
+  fs-extra: 10.1.0
   spark-md5: 3.0.2
 
 devDependencies:
@@ -977,6 +981,13 @@ packages:
       js-yaml: 4.1.0
       mkdirp: 0.5.6
     dev: true
+
+  /@midwayjs/upload/3.3.5:
+    resolution: {integrity: sha512-altfWVuX7JyljQW1ipiNargyRr86pVSq+lrYwFniWhfgERVQ4JubNq9XL3m46CCNkT0ULxmeE/cngjtnQEOLWA==}
+    engines: {node: '>=12'}
+    dependencies:
+      raw-body: 2.5.1
+    dev: false
 
   /@midwayjs/web/3.3.5_@midwayjs+decorator@3.3.4:
     resolution: {integrity: sha512-YVB34JoFAsgVF9DyW2IvkkneF2VyLBu1vr+E5lrLITmZp+dqAgjElrG2icRz7oxnVzmOpSpvs3FBwWnNEmFeLA==}
@@ -3575,6 +3586,15 @@ packages:
       universalify: 2.0.0
     dev: true
 
+  /fs-extra/10.1.0:
+    resolution: {integrity: sha512-oRXApq54ETRj4eMiFzGnHWGy+zo5raudjuxN0b8H7s/RU2oW0Wvsx9O0ACRN/kRq9E8Vu/ReskGB5o3ji+FzHQ==}
+    engines: {node: '>=12'}
+    dependencies:
+      graceful-fs: 4.2.10
+      jsonfile: 6.1.0
+      universalify: 2.0.0
+    dev: false
+
   /fs-extra/8.1.0:
     resolution: {integrity: sha512-yhlQgA6mnOJUKOsRUFsgJdQCvkKhcz8tlZG5HBQfReYZy46OwLcY+Zia0mtdHsOo9y/hP+CxMN0TU9QxoOtG4g==}
     engines: {node: '>=6 <7 || >=8'}
@@ -5133,7 +5153,6 @@ packages:
       universalify: 2.0.0
     optionalDependencies:
       graceful-fs: 4.2.10
-    dev: true
 
   /jsonp-body/1.0.0:
     resolution: {integrity: sha1-5hD7b86nnPDMnye6p7Vjd9SwuzY=}
@@ -7498,7 +7517,6 @@ packages:
   /universalify/2.0.0:
     resolution: {integrity: sha512-hAZsKq7Yy11Zu1DE0OzWjw7nnLZmJZYTDZZyEFHZdUhV8FkH5MCfoU1XMaxXovpyW5nq5scPqq0ZDP9Zyl04oQ==}
     engines: {node: '>= 10.0.0'}
-    dev: true
 
   /unpipe/1.0.0:
     resolution: {integrity: sha1-sr9O6FFKrmFltIF4KdIbLvSZBOw=}
