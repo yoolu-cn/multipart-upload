@@ -1,4 +1,5 @@
 import Axios from 'axios';
+export const cancelToken = Axios.CancelToken
 
 interface AxiosOptions {
     onError?: (e: Error) => Error;

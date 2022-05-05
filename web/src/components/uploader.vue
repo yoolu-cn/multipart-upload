@@ -1,13 +1,10 @@
 <script setup lang="ts">
-import { InputSearch } from 'ant-design-vue';
-import { reactive, ref } from 'vue';
-import { CHUNK_SIZE, Container, createFileChunks, createFileHash } from '../helper';
-import { search } from '../service/upload';
-const Status = {
-    wait: 'wait',
-    pause: 'pause',
-    uploading: 'uploading',
-};
+import { message } from 'ant-design-vue';
+import { reactive, ref, unref, computed } from 'vue';
+import { ChunkFileItem, CHUNK_SIZE, Container, createFileChunks, createFileHash, MAX_REQUEST, MAX_REXHR, ProgressStatus } from '../helper';
+import { cancelToken } from '../helper/fetch';
+import { getId, search, Status as StatusOption, uploadChunk, UploadRes } from '../service/upload';
+
 const columns = [
     {
         title: '切片hash',
@@ -15,7 +12,7 @@ const columns = [
         key: 'hash',
     },
     {
-        title: '大小(KB)',
+        title: '大小(B)',
         dataIndex: 'size',
         key: 'size',
     },
@@ -25,17 +22,16 @@ const columns = [
         key: 'percent',
     },
 ];
-let status = ref(Status.wait);
-const dataSource = ref([]);
+const status = ref(StatusOption.wait);
+let dataSource = ref([] as ChunkFileItem[]);
 const hashPercent = ref(0);
-const uploadPercent = ref(0);
+const uploadPercent = reactive({ percent: 0, status: 'active' });
 const container: Container = reactive({
     file: null,
     hash: '',
+    id: '',
     worker: null
 });
-
-
 
 const fileChange = (e: InputEvent) => {
     const [file]:FileList = (e.target as HTMLInputElement).files!;
@@ -49,8 +45,7 @@ const fileChange = (e: InputEvent) => {
 const upload = async () => {
     const { file } = container;
     if (!file) return;
-    status.value = Status.uploading;
-    console.log(status);;
+    status.value = StatusOption.uploading;
     const fileChunks = createFileChunks(file, CHUNK_SIZE);
     container.hash = await createFileHash(container, (percent: number) => {
         hashPercent.value = percent;
@@ -58,10 +53,145 @@ const upload = async () => {
 
     const { size, name, type  } = file;
 
-    const res = search({ hash: container.hash, size, name, type });
+    const res = await search({ hash: container.hash, size, name, type });
+    const { success, message: info, data: { status: searchStatus, id, uploadedList = [] } = {}} = res;
 
+    // 接口报错
+    if (!success) {
+        return message.error(info);
+    }
+    container.id = id!;
+    hashPercent.value = 100;
+    status.value = searchStatus as StatusOption;
+
+    switch(searchStatus) {
+        case StatusOption.success:
+            message.success('上传成功');
+            break;
+        case StatusOption.uploading:
+        case StatusOption.pause:
+            break;
+        default: 
+            const { data: { id } } = await getId({ hash: container.hash, size, name, type });
+            container.id = id;
+            break;
+    }
+
+    dataSource.value = fileChunks.map((item: { file: Blob }, index: number):ChunkFileItem => reactive({
+        index,
+        fileHash: container.hash,
+        hash: container.hash + '-' + index,
+        chunk: item.file,
+        size: item.file.size,
+        percent: 0,
+        status: 'active',
+        cancelToken: cancelToken.source()
+    }));
+
+    await uploadChunks(uploadedList);
+
+    if (uploadPercent.status = 'success') {
+        message.success('上传成功');
+    } else {
+        message.success('上传失败');
+    }
 }
 
+/**
+ * 分片上传操作
+ * @param uploadedList 已上传的数据，用于断电续传
+ */
+const uploadChunks = async (uploadedList: string[]) => {
+    const errorRequest = new Map();
+    const requestList = unref(dataSource)
+        .filter((item: ChunkFileItem, index: number) => !uploadedList.includes(item.hash));
+    let requestDone = false;
+    let start: number = 0;
+    while(!requestDone) {
+        const promises: any[] = []
+        if (start < requestList.length) {
+            createPromise(promises, requestList.slice(start, start + MAX_REQUEST))
+            start += promises.length;
+        } else {
+            const hashs = [...errorRequest.keys()];
+            createPromise(promises, requestList.filter((item: ChunkFileItem) => hashs.includes(item.hash)));
+        }
+        const res = await Promise.allSettled(promises);
+        res.forEach(({ value }: any) => {
+            const hasMap = errorRequest.has(value.data);
+            if (value.success) {
+                hasMap && errorRequest.delete(value.data);
+            } else {
+                errorRequest.set(value.data, hasMap ? (errorRequest.get(value.data) + 1) : 1);
+            }
+        });
+        /**
+         * 如果有接口重试超过3次 结束上传操作
+         */
+        const errorTimes = [...errorRequest.values()].find((i: number) => i === MAX_REXHR);
+        if (errorTimes) {
+            uploadPercent.status = 'exception';
+            requestDone = true;
+        }
+        
+        /**
+         * 上传完 requestList 并且重试错误请求并成功后 才算真正的上传完成分片
+         */
+        if (start >= requestList.length && ![...errorRequest.keys()].length) {
+            requestDone = true;
+            uploadPercent.status = 'success';
+        }
+    }
+}
+
+/**
+ * 计算总进度
+ */
+const uploadPercentOne = computed(() => {
+    if (!dataSource.value.length) return 0;
+    const loaded = dataSource.value.filter((item: ChunkFileItem) => {
+        return item.status === 'success'
+    });
+    return Number((loaded.length / dataSource.value.length * 100).toFixed(2));
+})
+/**
+ * 利用闭包数据 同步修改接口进度
+ * @param item 分片数据
+ */
+const createProgressHandler = (item: ChunkFileItem) => {
+    return (e: ProgressEvent) => {
+        item.percent = parseInt(String((e.loaded / e.total) * 100));
+    }
+}
+/**
+ * 运用闭包特性 接口返回时同步当前分片状态
+ * @param item 分片数据
+ */
+const updateChunkStatus = (item: ChunkFileItem) => {
+    return (status: ProgressStatus) => {
+        item.status = status;
+    }
+}
+
+/**
+ * 批量生成请求列表
+ * @param promises 
+ * @param list 
+ */
+const createPromise = (promises: any[], list: any[]) => {
+    list.forEach((item: ChunkFileItem) => {
+        const formData = new FormData();
+        formData.append('id', container.id);
+        formData.append('hash', item.hash);
+        formData.append('file', item.chunk);
+        promises.push(
+            uploadChunk(formData, {
+                onUploadProgress: createProgressHandler(item),
+                cancelToken: item.cancelToken.token
+            }, updateChunkStatus(item))
+        );
+    })
+}
 
 </script>
 
@@ -70,23 +200,23 @@ const upload = async () => {
         <a-input type="file" class="w-1/4 mr-4" placeholder="上传文件" @change="fileChange" />
         <a-button
             type="primary"
-            :disabled="Status.uploading === status"
+            :disabled="StatusOption.uploading === status"
             class="mr-4"
             @click="upload"
         >
             上传
         </a-button>
         <a-button
-            v-if="Status.pause !== status"
-            :disabled="Status.wait === status"
+            v-if="StatusOption.pause !== status"
+            :disabled="StatusOption.wait === status"
             type="primary"
             danger
             class="mr-4"
-            @click="status = Status.pause"
+            @click="status = StatusOption.pause"
         >
             暂停
         </a-button>
-        <a-button v-else type="primary" danger class="mr-4" @click="status = Status.uploading"
+        <a-button v-else type="primary" danger class="mr-4" @click="status = StatusOption.uploading"
             >恢复</a-button
         >
     </div>
@@ -94,12 +224,12 @@ const upload = async () => {
         <p class="text-left">计算文件hash</p>
         <a-progress :percent="hashPercent" :status="hashPercent === 100 ? 'success' : 'active'" />
         <p class="text-left">总进度</p>
-        <a-progress :percent="uploadPercent" :status="uploadPercent === 100 ? 'success' : 'active'" />
+        <a-progress :percent="uploadPercentOne" :status="uploadPercent.status" />
     </div>
     <a-table :dataSource="dataSource" :columns="columns" class="px-10">
         <template #bodyCell="{ column, record }">
             <template v-if="column.dataIndex === 'percent'">
-                <a-progress :percent="record.percent" size="small" :status="record.percent === 100 ? 'success' : 'active'" />
+                <a-progress :percent="record.percent" size="small" :status="record.status" />
             </template>
         </template>
     </a-table>
