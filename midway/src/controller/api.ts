@@ -42,7 +42,8 @@ export class APIController {
     }
   ): Promise<IGetFileResponse> {
     const { hash, name, size, type } = queryData;
-    if (!hash || !name || !size || !type) {
+    // type 有可能拿不到
+    if (!hash || !name || !size) {
       return { success: false, message: 'Query Error' };
     }
 
@@ -83,7 +84,8 @@ export class APIController {
     }
   ): Promise<IGetFileIdResponse> {
     const { hash, name, size, type } = queryData;
-    if (!hash || !name || !size || !type) {
+    // type 有可能拿不到
+    if (!hash || !name || !size) {
       return { success: false, message: 'Query Error' };
     }
     const uploadId = await this.uploadService.createFileId({
@@ -177,7 +179,10 @@ export class APIController {
       chunkPaths.map((chunkPath, index) =>
         this.pipeStream(
           path.resolve(chunkFileDir, chunkPath),
-          // 指定位置创建可写流
+          /**
+           * 指定位置创建可写流
+           * 不加 start end 参数合并失败
+           */
           fse.createWriteStream(filePath, {
             start: index * 1024 * 1024,
             end: (index + 1) * 1024 * 1024,
