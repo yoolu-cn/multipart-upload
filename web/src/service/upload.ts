@@ -16,7 +16,7 @@ interface SearchRes extends CommonRes{
         name: string; 
         status: Status
         id: string;
-        uploadedList?: string[]
+        chunkHash?: string[]
     }
 }
 
@@ -56,5 +56,11 @@ export async function uploadChunk(data: FormData, options: any, fn: any): Promis
         const { success } = res;
         fn(success ? 'success' : 'exception');
         return res;
+    })
+}
+
+export async function result(id: string) {
+    return axios.get('/result', {
+        params: { id },
     })
 }

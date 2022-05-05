@@ -41,11 +41,39 @@ export class UploadService {
     if (!file) {
       return false;
     }
+    console.log(file);
+    const { chunkHash = [] } = file;
+    const isExist = chunkHash.includes(hash);
+    if (!isExist) {
+      fileMap.set(id, {
+        ...file,
+        chunkHash: [...chunkHash, hash],
+      });
+    }
+    return true;
+  }
+
+  async getFile(id: string) {
+    const file = fileMap.get(id);
+    return file;
+  }
+
+  async finish(id: string) {
+    const file = fileMap.get(id);
     fileMap.set(id, {
       ...file,
-      chunkHash: [...file.chunkHash, hash],
+      status: Status.success,
+      chunkHash: [],
     });
-    return true;
+    return fileMap.get(id);
+  }
+
+  async uploading(id: string) {
+    const file = fileMap.get(id);
+    fileMap.set(id, {
+      ...file,
+      status: Status.uploading,
+    });
   }
 
   createUploadId(hash: string, name: string, size: string, type: string) {
