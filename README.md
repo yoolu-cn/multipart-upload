@@ -56,7 +56,7 @@
 
 - `search` 根据生成 `fileHash` 和其他文件信息 生成 `uploadID` 来判断文件的上传状态，返回后续操作信息
 - `getId` 根据生成 `fileHash` 和其他文件信息 生成 `uploadID` , 并且创建临时文件存储分片文件。
-- `upload` 使用 `formData` 上传分片，并保存在分片目录中，记录分片信息
+- `upload` 使用 `formData` 上传分片，并保存在分片目录中，记录分片信息。`Content-Type` 为 `multipart/form-data`
 - `result` 前端上传完所有分片后，发起合并请求，返回结果 。
 
 ### 参考文献
