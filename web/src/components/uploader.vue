@@ -19,6 +19,7 @@ const columns = [
         title: '切片hash',
         dataIndex: 'hash',
         key: 'hash',
+        width: '40%',
     },
     {
         title: '大小(B)',
@@ -29,6 +30,7 @@ const columns = [
         title: '进度',
         dataIndex: 'percent',
         key: 'percent',
+        width: '40%',
     },
 ];
 const status = ref(StatusOption.wait);
